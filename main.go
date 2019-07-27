@@ -107,7 +107,7 @@ func refreshTop250() []*filmInfo {
 		})
 
 		start += onePageItem
-		if start >= 2 {
+		if start >= 250 {
 			break
 		}
 	}
