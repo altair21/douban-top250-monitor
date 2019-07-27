@@ -89,7 +89,7 @@ func refreshTop250() []*filmInfo {
 			title := selection.Find("div > div.info > div.hd > a > span").Text()
 			url, _ := selection.Find("div > div.info > div.hd > a").Attr("href")
 			ratingStr := selection.Find("div > div.info > div.bd > div > span.rating_num").Text()
-			ratingNumbersStr := selection.Find("div > div.info > div.bd > div > span").Text()
+			ratingNumbersStr := selection.Find("div > div.info > div.bd > div > span:nth-child(4)").Text()
 			inq := selection.Find("div > div.info > div.bd > p.quote > span").Text()
 
 			rating, _ := strconv.ParseFloat(ratingStr, 32)
@@ -144,7 +144,7 @@ func sendMail(receiver, subject, content string) error {
 }
 
 func generateFilmLog(logType string, number int, film *filmInfo) string {
-	return fmt.Sprintf("【%s】%d - %s %f (%d人评价） %s", logType, number, film.Title, film.Rating, film.RatingNumbers, film.Inq)
+	return fmt.Sprintf("【%s】%d - %s %.1f (%d人评价） %s", logType, number, film.Title, film.Rating, film.RatingNumbers, film.Inq)
 }
 
 func compareFilms(oldFilms, newFilms []*filmInfo) (hasUpdate bool, content string) {
