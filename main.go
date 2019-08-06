@@ -25,7 +25,7 @@ const receiver = ""
 
 const onePageItem = 25
 const host = "https://movie.douban.com"
-const localFilmsPath = "./top250.json"
+const localFilmsPath = "top250.json"
 
 const JoinBoard = "新上榜"
 const LeaveBoard = "下榜"
@@ -147,6 +147,10 @@ func generateFilmLog(logType string, number int, film *filmInfo) string {
 	return fmt.Sprintf("【%s】%d - %s %.1f (%d人评价） %s", logType, number, film.Title, film.Rating, film.RatingNumbers, film.Inq)
 }
 
+func generateIndexLog(film *filmInfo, newIndex int, oldIndex int) string {
+	return fmt.Sprintf("【排位变动】%s：第 %d 名 --> 第 %d 名", film.Title, oldIndex, newIndex)
+}
+
 func compareFilms(oldFilms, newFilms []*filmInfo) (hasUpdate bool, content string) {
 	fmt.Printf("comparing files......\n")
 	logs := []string{}
@@ -155,9 +159,12 @@ func compareFilms(oldFilms, newFilms []*filmInfo) (hasUpdate bool, content strin
 	}
 	for i, oldFilm := range oldFilms {
 		found := false
-		for _, newFilm := range newFilms {
+		for j, newFilm := range newFilms {
 			if oldFilm.URL == newFilm.URL {
 				found = true
+				if i != j {
+					logs = append(logs, generateIndexLog(newFilm, j, i))
+				}
 				break
 			}
 		}
@@ -200,6 +207,14 @@ func main() {
 			sendMail(receiver, "豆瓣电影Top250监测程序异常", str)
 		}
 	}()
+	err := mkdir("./logs/")
+	if err != nil {
+		fmt.Printf("mkdir `logs` failed: %v\n", err)
+	}
+	err = mkdir("./record/")
+	if err != nil {
+		fmt.Printf("mkdir `logs` failed: %v\n", err)
+	}
 	for {
 		localFilms := readLocalFilms(localFilmsPath)
 		newFilms := refreshTop250()
@@ -210,19 +225,20 @@ func main() {
 			if err != nil {
 				fmt.Printf("top250 has update but send mail failed: %v\n", err)
 			}
-			err = mkdir("./logs/")
-			if err != nil {
-				fmt.Printf("mkdir `logs` failed: %v\n", err)
-			}
 			err = ioutil.WriteFile(path.Join("logs", fmt.Sprintf("log_%s.txt", time.Now().Format(time.RFC3339))), []byte(content), os.ModePerm)
 			if err != nil {
 				fmt.Printf("write log failed: %v\ncontent: %s\n", err, content)
 			}
+		} else {
+			fmt.Printf("no update.\n")
 		}
-		fmt.Printf("no update.\n")
 		b, err := json.Marshal(&newFilms)
 		if err != nil {
 			panic("marshal new films failed: " + err.Error())
+		}
+		err = ioutil.WriteFile(path.Join("./record/", time.Now().String()+"-"+localFilmsPath), b, os.ModePerm)
+		if err != nil {
+			panic("update local films failed: " + err.Error())
 		}
 		err = ioutil.WriteFile(localFilmsPath, b, os.ModePerm)
 		if err != nil {
