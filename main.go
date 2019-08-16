@@ -75,42 +75,50 @@ func refreshTop250() []*filmInfo {
 	start := 0
 	var res []*filmInfo
 	for {
-		url := fmt.Sprintf("%s/top250?start=%d&filter=", host, start)
-		resp, err := http.Get(url)
-		if err != nil {
-			panic("refreshTop250 failed when do request: " + err.Error())
-		}
-		defer resp.Body.Close()
-		doc, err := goquery.NewDocumentFromReader(resp.Body)
-		if err != nil {
-			panic("refreshTop250 failed when create new doc from reader: " + err.Error())
-		}
-		doc.Find("#content > div > div.article > ol > li").Each(func(i int, selection *goquery.Selection) {
-			title := selection.Find("div > div.info > div.hd > a > span").Text()
-			url, _ := selection.Find("div > div.info > div.hd > a").Attr("href")
-			ratingStr := selection.Find("div > div.info > div.bd > div > span.rating_num").Text()
-			ratingNumbersStr := selection.Find("div > div.info > div.bd > div > span:nth-child(4)").Text()
-			inq := selection.Find("div > div.info > div.bd > p.quote > span").Text()
-
-			rating, _ := strconv.ParseFloat(ratingStr, 32)
-			re := regexp.MustCompile("[0-9]+")
-			ratingNumbersStr = re.FindAllString(ratingNumbersStr, -1)[0]
-			ratingNumber, _ := strconv.ParseInt(ratingNumbersStr, 10, 32)
-			film := filmInfo{
-				Title:         title,
-				URL:           url,
-				Rating:        float32(rating),
-				RatingNumbers: int(ratingNumber),
-				Inq:           inq,
+		for {
+			url := fmt.Sprintf("%s/top250?start=%d&filter=", host, start)
+			resp, err := http.Get(url)
+			if err != nil {
+				panic("refreshTop250 failed when do request: " + err.Error())
 			}
-			res = append(res, &film)
-		})
+			defer resp.Body.Close()
+			doc, err := goquery.NewDocumentFromReader(resp.Body)
+			if err != nil {
+				panic("refreshTop250 failed when create new doc from reader: " + err.Error())
+			}
+			doc.Find("#content > div > div.article > ol > li").Each(func(i int, selection *goquery.Selection) {
+				title := selection.Find("div > div.info > div.hd > a > span").Text()
+				url, _ := selection.Find("div > div.info > div.hd > a").Attr("href")
+				ratingStr := selection.Find("div > div.info > div.bd > div > span.rating_num").Text()
+				ratingNumbersStr := selection.Find("div > div.info > div.bd > div > span:nth-child(4)").Text()
+				inq := selection.Find("div > div.info > div.bd > p.quote > span").Text()
 
-		start += onePageItem
-		if start >= 250 {
+				rating, _ := strconv.ParseFloat(ratingStr, 32)
+				re := regexp.MustCompile("[0-9]+")
+				ratingNumbersStr = re.FindAllString(ratingNumbersStr, -1)[0]
+				ratingNumber, _ := strconv.ParseInt(ratingNumbersStr, 10, 32)
+				film := filmInfo{
+					Title:         title,
+					URL:           url,
+					Rating:        float32(rating),
+					RatingNumbers: int(ratingNumber),
+					Inq:           inq,
+				}
+				res = append(res, &film)
+			})
+
+			start += onePageItem
+			if start >= 250 {
+				break
+			}
+		}
+		if len(res) >= 250 {
 			break
 		}
+		time.Sleep(5 * time.Minute)
+		res = []*filmInfo{}
 	}
+
 	fmt.Printf("refresh top250 finished.\n")
 	return res
 }
