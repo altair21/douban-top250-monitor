@@ -14,7 +14,7 @@ var (
 	dbLogger = logging.MustGetLogger("dblog")
 
 	format = logging.MustStringFormatter(
-		`[%{time:15:04:05.000}] %{color}%{level:.8s} %{id:08d} %{shortfunc} ▶%{color:reset} %{message}`,
+		`[%{time:2006-01-02 15:04:05.000}] %{color}%{level:.8s} %{id:08d} %{shortfunc} ▶%{color:reset} %{message}`,
 	)
 
 	jsonformat = logging.MustStringFormatter(

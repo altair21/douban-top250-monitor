@@ -233,9 +233,9 @@ func main() {
 		lgr.Errorf("mkdir `logs` failed: %v", err)
 		return
 	}
-	err = mkdir("./record/")
+	err = mkdir("./records/")
 	if err != nil {
-		lgr.Errorf("mkdir `record` failed: %v", err)
+		lgr.Errorf("mkdir `records` failed: %v", err)
 		return
 	}
 	for {
@@ -259,7 +259,7 @@ func main() {
 		if err != nil {
 			panic("marshal new films failed: " + err.Error())
 		}
-		err = ioutil.WriteFile(path.Join("./record/", time.Now().Format(time.RFC3339)+"-"+localFilmsPath), b, os.ModePerm)
+		err = ioutil.WriteFile(path.Join("./records/", time.Now().Format(time.RFC3339)+"-"+localFilmsPath), b, os.ModePerm)
 		if err != nil {
 			panic("update local films failed: " + err.Error())
 		}
