@@ -5,11 +5,13 @@ import (
 	"errors"
 	"fmt"
 	"github.com/PuerkitoBio/goquery"
+	"github.com/altair21/douban-top250-monitor/logger"
 	"io/ioutil"
 	"net/http"
 	"net/smtp"
 	"os"
 	"path"
+	"path/filepath"
 	"regexp"
 	"strconv"
 	"strings"
@@ -29,6 +31,8 @@ const localFilmsPath = "top250.json"
 
 const JoinBoard = "新上榜"
 const LeaveBoard = "下榜"
+
+var lgr = logger.NewMyLogger()
 
 type filmInfo struct {
 	Title         string  `json:"title"`
@@ -71,7 +75,7 @@ func readLocalFilms(filePath string) []*filmInfo {
 }
 
 func refreshTop250() []*filmInfo {
-	fmt.Printf("refreshing top250......\n")
+	lgr.Debug("refreshing top250...")
 	start := 0
 	var res []*filmInfo
 	for {
@@ -119,7 +123,7 @@ func refreshTop250() []*filmInfo {
 		res = []*filmInfo{}
 	}
 
-	fmt.Printf("refresh top250 finished.\n")
+	lgr.Debug("refresh top250 finished.")
 	return res
 }
 
@@ -137,17 +141,18 @@ func sendMail(receiver, subject, content string) error {
 	smtpAddr := fmt.Sprintf("%s:%d", smtpHost, smtpPort)
 	err := smtp.SendMail(smtpAddr, auth, email, to, msg)
 	if err != nil {
-		fmt.Printf("send mail failed: %v\n", err)
+		lgr.Errorf("send email failed: %v", err)
 		err = mkdir("./logs/")
 		if err != nil {
-			fmt.Printf("mkdir `logs` failed: %v\n", err)
+			lgr.Errorf("mkdir `logs` failed: %v", err)
 		}
 		err = ioutil.WriteFile(path.Join("logs", fmt.Sprintf("error_%s.txt", time.Now().Format(time.RFC3339))), []byte(content), os.ModePerm)
 		if err != nil {
-			fmt.Printf("write error log failed: %v\ncontent: %s\n", err, content)
+			lgr.Errorf("write error log failed: %v\ncontent: %s\n", err, content)
 		}
+	} else {
+		lgr.Debug("send email succeed!")
 	}
-	fmt.Println("send email succeed!")
 	return nil
 }
 
@@ -160,7 +165,7 @@ func generateIndexLog(film *filmInfo, newIndex int, oldIndex int) string {
 }
 
 func compareFilms(oldFilms, newFilms []*filmInfo) (hasUpdate bool, content string) {
-	fmt.Printf("comparing files......\n")
+	lgr.Debug("comparing files...")
 	logs := []string{}
 	if len(oldFilms) == 0 {
 		return false, ""
@@ -196,8 +201,13 @@ func compareFilms(oldFilms, newFilms []*filmInfo) (hasUpdate bool, content strin
 		}
 	}
 
-	fmt.Printf("compare files finished.\n")
+	lgr.Debug("compare files finished.")
 	return len(logs) > 0, strings.Join(logs, "\n")
+}
+
+func initialize() {
+	dir, _ := filepath.Abs("../logs")
+	logger.InitializeLogger(dir, "monitor", "monitor_db")
 }
 
 func main() {
@@ -211,40 +221,45 @@ func main() {
 			if !ok {
 				str = err.Error()
 			}
-			fmt.Println(str)
+			lgr.Error(str)
 			sendMail(receiver, "豆瓣电影Top250监测程序异常", str)
 		}
 	}()
+
+	initialize()
+
 	err := mkdir("./logs/")
 	if err != nil {
-		fmt.Printf("mkdir `logs` failed: %v\n", err)
+		lgr.Errorf("mkdir `logs` failed: %v", err)
+		return
 	}
 	err = mkdir("./record/")
 	if err != nil {
-		fmt.Printf("mkdir `logs` failed: %v\n", err)
+		lgr.Errorf("mkdir `record` failed: %v", err)
+		return
 	}
 	for {
 		localFilms := readLocalFilms(localFilmsPath)
 		newFilms := refreshTop250()
 		hasUpdate, content := compareFilms(localFilms, newFilms)
 		if hasUpdate {
-			fmt.Printf("has update, sending email......\n")
+			lgr.Debug("has update, sending email...")
 			err := sendMail(receiver, "豆瓣电影Top250监测到变化", content)
 			if err != nil {
-				fmt.Printf("top250 has update but send mail failed: %v\n", err)
+				lgr.Errorf("top250 has update but send mail failed: %v", err)
 			}
 			err = ioutil.WriteFile(path.Join("logs", fmt.Sprintf("log_%s.txt", time.Now().Format(time.RFC3339))), []byte(content), os.ModePerm)
 			if err != nil {
-				fmt.Printf("write log failed: %v\ncontent: %s\n", err, content)
+				lgr.Errorf("write log failed: %v\ncontent: %s\n", err, content)
 			}
 		} else {
-			fmt.Printf("no update.\n")
+			lgr.Debug("no update.")
 		}
 		b, err := json.Marshal(&newFilms)
 		if err != nil {
 			panic("marshal new films failed: " + err.Error())
 		}
-		err = ioutil.WriteFile(path.Join("./record/", time.Now().String()+"-"+localFilmsPath), b, os.ModePerm)
+		err = ioutil.WriteFile(path.Join("./record/", time.Now().Format(time.RFC3339)+"-"+localFilmsPath), b, os.ModePerm)
 		if err != nil {
 			panic("update local films failed: " + err.Error())
 		}
