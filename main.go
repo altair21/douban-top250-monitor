@@ -1,6 +1,7 @@
 package main
 
 import (
+	"bytes"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -78,14 +79,27 @@ func refreshTop250() []*filmInfo {
 	lgr.Debug("refreshing top250...")
 	start := 0
 	var res []*filmInfo
+	var respBody []byte
 	for {
 		for {
 			url := fmt.Sprintf("%s/top250?start=%d&filter=", host, start)
-			resp, err := http.Get(url)
+			req, err := http.NewRequest(http.MethodGet, url, nil)
+			if err != nil {
+				panic("refreshTop250 failed when create new request: " + err.Error())
+			}
+			req.Header.Set("User-Agent", "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_14_5) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/79.0.3945.117 Safari/537.36")
+			resp, err := http.DefaultClient.Do(req)
 			if err != nil {
 				panic("refreshTop250 failed when do request: " + err.Error())
 			}
 			defer resp.Body.Close()
+
+			respBody, err = ioutil.ReadAll(resp.Body)
+			if err != nil {
+				panic("refreshTop250 failed when read response body: " + err.Error())
+			}
+			resp.Body = ioutil.NopCloser(bytes.NewBuffer(respBody))
+
 			doc, err := goquery.NewDocumentFromReader(resp.Body)
 			if err != nil {
 				panic("refreshTop250 failed when create new doc from reader: " + err.Error())
@@ -118,8 +132,11 @@ func refreshTop250() []*filmInfo {
 		}
 		if len(res) >= 250 {
 			break
+		} else {
+			lgr.Errorf("refresh failed. extract `%d` items", len(res))
+			fmt.Println(string(respBody))
 		}
-		time.Sleep(5 * time.Minute)
+		time.Sleep(8 * time.Hour)
 		res = []*filmInfo{}
 	}
 
@@ -243,7 +260,7 @@ func main() {
 		newFilms := refreshTop250()
 		hasUpdate, content := compareFilms(localFilms, newFilms)
 		if hasUpdate {
-			lgr.Debug("has update, sending email...")
+			lgr.Debug("【has update】, sending email...")
 			err := sendMail(receiver, "豆瓣电影Top250监测到变化", content)
 			if err != nil {
 				lgr.Errorf("top250 has update but send mail failed: %v", err)
@@ -268,6 +285,6 @@ func main() {
 			panic("update local films failed: " + err.Error())
 		}
 
-		time.Sleep(8 * time.Hour)
+		time.Sleep(24 * time.Hour)
 	}
 }
